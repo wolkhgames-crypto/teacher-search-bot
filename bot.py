@@ -480,7 +480,7 @@ async def fetch_timetable_html_public(session: ClientSession, group_id: str) -> 
 
 # ==================== ОБРАБОТЧИКИ ====================
 @dp.message(Command("start"))
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     if user_id in user_data and user_data[user_id].get("authorized"):
@@ -497,6 +497,7 @@ async def cmd_start(message: Message):
             parse_mode="HTML"
         )
         await message.answer("Введи пароль:", reply_markup=cancel_keyboard())
+        await state.set_state(AuthStates.waiting_password)
 
 @dp.message(F.text == "❌ Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
