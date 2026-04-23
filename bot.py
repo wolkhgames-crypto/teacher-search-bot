@@ -33,7 +33,7 @@ DIARY_URL = f"{BASE_URL}/eioswork/diaries/studentsdiary.php"
 TIMETABLE_URL = f"{BASE_URL}/eioswork/timetable/watchstudent.php"
 
 # Группа П-21 (жёстко задано)
-GROUP_ID = "1053"  # ID группы П-21
+GROUP_ID = "238"  # ID группы П-21
 
 dp = Dispatcher(storage=MemoryStorage())
 
