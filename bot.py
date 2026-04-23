@@ -24,7 +24,7 @@ load_dotenv()
 
 # ==================== КОНФИГУРАЦИЯ ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_PASSWORD = "Kp9#mL2$xQ7w"  # Новый 12-символьный пароль
+ADMIN_PASSWORD = "Km9pL2xQ7wAb"  # Новый 12-символьный пароль
 
 # Moodle настройки
 BASE_URL = "https://rmk.stavedu.ru:8010/moodle"
