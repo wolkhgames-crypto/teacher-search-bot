@@ -195,8 +195,24 @@ def parse_grades(html: str, year: int, month: int) -> str:
 
     return "\n".join(result) if len(result) > 1 else "📭 Оценок за этот месяц нет"
 
+async def fetch_timetable_public() -> str:
+    """Получает расписание для группы П-21 (без авторизации)"""
+    now = datetime.now()
+    url = f"{TIMETABLE_URL}?year={now.year}&month={now.month}&group={GROUP_ID}"
+
+    timeout = ClientTimeout(total=30, connect=10)
+    connector = TCPConnector(ssl=False, force_close=True)
+
+    try:
+        async with ClientSession(connector=connector, timeout=timeout) as session:
+            async with session.get(url) as resp:
+                html = await resp.text()
+        return parse_timetable(html)
+    except:
+        return "❌ Сервер недоступен. Попробуй позже."
+
 async def fetch_timetable(cookies: dict) -> str:
-    """Получает расписание для группы П-21"""
+    """Получает расписание для группы П-21 (с авторизацией)"""
     now = datetime.now()
     url = f"{TIMETABLE_URL}?year={now.year}&month={now.month}&group={GROUP_ID}"
 
@@ -491,9 +507,8 @@ async def cmd_start(message: Message, state: FSMContext):
         )
     else:
         await message.answer(
-            f"🔐 <b>Введи пароль для доступа</b>\n\n"
-            f"Пароль: {ADMIN_PASSWORD}\n\n"
-            f"<i>Отправь пароль следующим сообщением</i>",
+            "🔐 <b>Введи пароль для доступа</b>\n\n"
+            "<i>Отправь пароль следующим сообщением</i>",
             parse_mode="HTML"
         )
         await message.answer("Введи пароль:", reply_markup=cancel_keyboard())
@@ -552,22 +567,13 @@ async def handle_message(message: Message, state: FSMContext):
         return
 
     if text == "📋 Расписание":
-        if user_id in user_data and user_data[user_id].get("moodle_cookies"):
-            await message.answer("⏳ Загружаю расписание...")
-            result = await fetch_timetable(user_data[user_id]["moodle_cookies"])
-            if result:
-                await message.answer(result, parse_mode="Markdown")
-            else:
-                await message.answer("❌ Сессия истекла. Введи логин от Moodle:")
-                await state.set_state(AuthStates.waiting_moodle_login)
+        # Расписание доступно без авторизации (группа П-21)
+        await message.answer("⏳ Загружаю расписание...")
+        result = await fetch_timetable_public()
+        if result:
+            await message.answer(result, parse_mode="Markdown")
         else:
-            await message.answer(
-                "📅 <b>Вход в электронный дневник</b>\n\n"
-                "Введи свой логин от Moodle (СРМК):",
-                parse_mode="HTML",
-                reply_markup=cancel_keyboard()
-            )
-            await state.set_state(AuthStates.waiting_moodle_login)
+            await message.answer("❌ Не удалось загрузить расписание. Попробуй позже.")
         return
 
     if text == "👁️ Поиск преподавателя":
@@ -591,10 +597,10 @@ async def handle_message(message: Message, state: FSMContext):
     if current_state == AuthStates.waiting_moodle_password.state:
         await message.answer("⏳ Авторизация в Moodle...")
 
-        moodle_login = user_data.get(user_id, {}).get("moodle_login")
-        moodle_password = text
+        ml_user = user_data.get(user_id, {}).get("moodle_login")
+        ml_pass = text
 
-        cookies = await moodle_login(moodle_login, moodle_password)
+        cookies = await moodle_login(ml_user, ml_pass)
 
         if cookies:
             user_data.setdefault(user_id, {})["moodle_cookies"] = cookies
