@@ -26,6 +26,11 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_PASSWORD = "Km9pL2xQ7wAb"  # Новый 12-символьный пароль
 
+# Разрешённые Telegram ID (через запятую в .env: ALLOWED_USERS=123456789,987654321)
+ALLOWED_USERS = os.getenv("ALLOWED_USERS", "").split(",")
+if ALLOWED_USERS == [""]:
+    ALLOWED_USERS = []  # Если пусто - список пустой
+
 # Moodle настройки
 BASE_URL = "https://rmk.stavedu.ru:8010/moodle"
 LOGIN_URL = f"{BASE_URL}/login/index.php"
@@ -521,9 +526,14 @@ async def cmd_cancel(message: Message, state: FSMContext):
 
 @dp.message()
 async def handle_message(message: Message, state: FSMContext):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
     text = message.text.strip()
     current_state = await state.get_state()
+
+    # Проверка белого списка пользователей
+    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+        await message.answer("❌ Доступ запрещён. Ваш Telegram ID не в белом списке.")
+        return
 
     # Проверка пароля админа
     if current_state == AuthStates.waiting_password.state:
