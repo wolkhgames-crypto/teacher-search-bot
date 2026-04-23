@@ -26,10 +26,8 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_PASSWORD = "Km9pL2xQ7wAb"  # Новый 12-символьный пароль
 
-# Разрешённые Telegram ID (через запятую в .env: ALLOWED_USERS=123456789,987654321)
-ALLOWED_USERS = os.getenv("ALLOWED_USERS", "").split(",")
-if ALLOWED_USERS == [""]:
-    ALLOWED_USERS = []  # Если пусто - список пустой
+# Разрешённые Telegram ID (добавляй свои через запятую)
+ALLOWED_USERS = ["2035205294"]  # Твой Telegram ID
 
 # Moodle настройки
 BASE_URL = "https://rmk.stavedu.ru:8010/moodle"
