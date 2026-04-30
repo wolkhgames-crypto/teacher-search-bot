@@ -20,6 +20,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
 
+from db import init_db, get_user, save_user_auth, save_moodle_data, update_cookies, close_db
+
 load_dotenv()
 
 # ==================== КОНФИГУРАЦИЯ ====================
@@ -500,9 +502,25 @@ async def fetch_timetable_html_public(session: ClientSession, group_id: str) -> 
 # ==================== ОБРАБОТЧИКИ ====================
 @dp.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
 
-    if user_id in user_data and user_data[user_id].get("authorized"):
+    # Загружаем данные из БД
+    db_user = await get_user(user_id)
+
+    if db_user and db_user.get("authorized"):
+        # Восстанавливаем данные в память
+        user_data[user_id] = {
+            "authorized": True,
+            "moodle_login": db_user.get("moodle_login"),
+            "moodle_password": db_user.get("moodle_password"),
+            "moodle_cookies": db_user.get("moodle_cookies"),
+        }
+        await message.answer(
+            "✅ Ты уже авторизован!\n\n"
+            "Выбери действие:",
+            reply_markup=main_keyboard()
+        )
+    elif user_id in user_data and user_data[user_id].get("authorized"):
         await message.answer(
             "✅ Ты уже авторизован!\n\n"
             "Выбери действие:",
@@ -537,6 +555,7 @@ async def handle_message(message: Message, state: FSMContext):
     if current_state == AuthStates.waiting_password.state:
         if text == ADMIN_PASSWORD:
             user_data[user_id] = {"authorized": True}
+            await save_user_auth(user_id)
             await state.clear()
             await message.answer(
                 "✅ <b>Пароль верный! Доступ разрешён.</b>\n\n"
@@ -555,15 +574,34 @@ async def handle_message(message: Message, state: FSMContext):
 
     # Обработка кнопок главного меню
     if text == "📊 Оценки":
-        # Проверяем, есть ли логин/пароль от Moodle
-        if user_id in user_data and user_data[user_id].get("moodle_cookies"):
+        # Проверяем, есть ли cookies от Moodle
+        ud = user_data.get(user_id, {})
+        if ud.get("moodle_cookies"):
             await message.answer("⏳ Загружаю оценки...")
-            result = await fetch_grades(user_data[user_id]["moodle_cookies"])
+            result = await fetch_grades(ud["moodle_cookies"])
             if result:
                 await message.answer(result, parse_mode="Markdown")
             else:
-                await message.answer("❌ Сессия истекла. Введи логин от Moodle:")
-                await state.set_state(AuthStates.waiting_moodle_login)
+                # Cookies истекли — пробуем ре-логин
+                ml_user = ud.get("moodle_login")
+                ml_pass = ud.get("moodle_password")
+                if ml_user and ml_pass:
+                    await message.answer("🔄 Сессия истекла, переподключаюсь...")
+                    new_cookies = await moodle_login(ml_user, ml_pass)
+                    if new_cookies:
+                        user_data[user_id]["moodle_cookies"] = new_cookies
+                        await update_cookies(user_id, new_cookies)
+                        result = await fetch_grades(new_cookies)
+                        if result:
+                            await message.answer(result, parse_mode="Markdown")
+                        else:
+                            await message.answer("❌ Не удалось загрузить оценки.")
+                    else:
+                        await message.answer("❌ Не удалось войти. Введи логин от Moodle:")
+                        await state.set_state(AuthStates.waiting_moodle_login)
+                else:
+                    await message.answer("❌ Сессия истекла. Введи логин от Moodle:")
+                    await state.set_state(AuthStates.waiting_moodle_login)
         else:
             await message.answer(
                 "📚 <b>Вход в электронный дневник</b>\n\n"
@@ -612,6 +650,7 @@ async def handle_message(message: Message, state: FSMContext):
 
         if cookies:
             user_data.setdefault(user_id, {})["moodle_cookies"] = cookies
+            await save_moodle_data(user_id, ml_user, ml_pass, cookies)
             await state.clear()
             await message.answer(
                 "✅ Успешный вход в Moodle!\n\n"
@@ -653,12 +692,17 @@ async def main():
         print("❌ Ошибка: BOT_TOKEN не найден в .env файле!")
         return
 
+    # Подключаем БД
+    await init_db()
+    print("✅ БД подключена!")
+
     bot = Bot(token=BOT_TOKEN, session=AiohttpSession())
 
     try:
         print("✅ Бот запущен!")
         await dp.start_polling(bot)
     finally:
+        await close_db()
         await bot.session.close()
 
 if __name__ == "__main__":
