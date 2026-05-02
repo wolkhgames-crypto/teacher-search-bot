@@ -567,6 +567,17 @@ async def handle_message(message: Message, state: FSMContext):
             await message.answer("❌ Неверный пароль. Попробуй ещё раз:", reply_markup=cancel_keyboard())
         return
 
+    # Загружаем из БД если нет в памяти
+    if user_id not in user_data:
+        db_user = await get_user(user_id)
+        if db_user and db_user.get("authorized"):
+            user_data[user_id] = {
+                "authorized": True,
+                "moodle_login": db_user.get("moodle_login"),
+                "moodle_password": db_user.get("moodle_password"),
+                "moodle_cookies": db_user.get("moodle_cookies"),
+            }
+
     # Проверка авторизации
     if not (user_id in user_data and user_data[user_id].get("authorized")):
         await message.answer("Сначала введи пароль! Отправь /start")
