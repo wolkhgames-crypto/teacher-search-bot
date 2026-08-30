@@ -37,8 +37,8 @@ LOGIN_URL = f"{BASE_URL}/login/index.php"
 DIARY_URL = f"{BASE_URL}/eioswork/diaries/studentsdiary.php"
 TIMETABLE_URL = f"{BASE_URL}/eioswork/timetable/watchstudent.php"
 
-# Группа П-21 (жёстко задано)
-GROUP_ID = "238"  # ID группы П-21
+# Группа (жёстко задано)
+GROUP_ID = "238"  # ID группы П-31
 
 dp = Dispatcher(storage=MemoryStorage())
 
@@ -201,7 +201,7 @@ def parse_grades(html: str, year: int, month: int) -> str:
     return "\n".join(result) if len(result) > 1 else "📭 Оценок за этот месяц нет"
 
 async def fetch_timetable_public() -> str:
-    """Получает расписание для группы П-21 (без авторизации)"""
+    """Получает расписание для группы П-31 (без авторизации)"""
     now = datetime.now()
     url = f"{TIMETABLE_URL}?year={now.year}&month={now.month}&group={GROUP_ID}"
 
@@ -217,7 +217,7 @@ async def fetch_timetable_public() -> str:
         return "❌ Сервер недоступен. Попробуй позже."
 
 async def fetch_timetable(cookies: dict) -> str:
-    """Получает расписание для группы П-21 (с авторизацией)"""
+    """Получает расписание для группы П-31 (с авторизацией)"""
     now = datetime.now()
     url = f"{TIMETABLE_URL}?year={now.year}&month={now.month}&group={GROUP_ID}"
 
@@ -245,7 +245,11 @@ def parse_timetable(html: str) -> str:
     if not day_tables:
         return "❌ Расписание не найдено"
 
-    result = ["📅 *Расписание занятий (П-21)*\n"]
+    # Извлекаем заголовок группы из HTML или используем П-31 по умолчанию
+    header_tag = soup.find(["h1", "h2", "h3", "h4"])
+    group_title = header_tag.get_text(strip=True) if header_tag else "П-31"
+
+    result = [f"📅 *Расписание занятий ({group_title})*\n"]
 
     times = {
         "1": "8:00 - 9:30",
